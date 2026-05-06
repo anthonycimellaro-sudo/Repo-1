@@ -11,7 +11,7 @@ from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
 from pptx.oxml.ns import qn
-from lxml import etree
+from pptx.oxml import parse_xml
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 WHITE     = RGBColor(0xFF, 0xFF, 0xFF)
@@ -230,9 +230,12 @@ def set_cell_bg(cell, color):
     tcPr = tc.get_or_add_tcPr()
     for old in tcPr.findall(qn('a:solidFill')):
         tcPr.remove(old)
-    sf = etree.SubElement(tcPr, qn('a:solidFill'))
-    clr = etree.SubElement(sf, qn('a:srgbClr'))
-    clr.set('val', str(color))
+    sf = parse_xml(
+        f'<a:solidFill xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+        f'<a:srgbClr val="{str(color)}"/>'
+        f'</a:solidFill>'
+    )
+    tcPr.append(sf)
 
 
 def write_cell(cell, text, size=8, bold=False, color=DARK_GRAY, align=PP_ALIGN.CENTER):
