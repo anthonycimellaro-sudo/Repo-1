@@ -10,8 +10,6 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.dml.color import RGBColor
 from pptx.enum.text import PP_ALIGN
-from pptx.oxml.ns import qn
-from pptx.oxml import parse_xml
 
 # ── Colors ────────────────────────────────────────────────────────────────────
 WHITE     = RGBColor(0xFF, 0xFF, 0xFF)
@@ -61,7 +59,7 @@ PHASES = [
             ("Scope Regulations & Compliance",       ["","C","I","C","C","C","","R/A","I","I"]),
             ("Initial Make vs Buy Analysis",         ["I","C","I","C","C","C","","C","","R/A"]),
             ("IP Assessment",                        ["","C","I","C","C","C","C","I","","R/A"]),
-            ("★ Discovery Exit Gate Review",         ["A","R","R","R","R","R","R","R","R","R"]),
+            ("GATE: Discovery Exit Review",          ["A","R","R","R","R","R","R","R","R","R"]),
         ],
     },
     {
@@ -79,7 +77,7 @@ PHASES = [
             ("Initial Firmware Development",         ["","I","I","","","R/A","","","",""]),
             ("Preliminary DFMEA",                    ["","A","I","R","R","R","","C","C",""]),
             ("Risk Register Established",            ["I","C","R/A","","","","C","C","C",""]),
-            ("★ Concept Exit Gate Review",           ["A","R","R","R","R","R","R","R","R","R"]),
+            ("GATE: Concept Exit Review",            ["A","R","R","R","R","R","R","R","R","R"]),
         ],
     },
     {
@@ -111,7 +109,7 @@ PHASES = [
             ("Risk Register Updated",                ["I","C","R/A","","","","","","C","C"]),
             ("CM Reporting Cadence Agreement",       ["","C","R/A","","","","","","C","C"]),
             ("EVT Build",                            ["I","R/A","I","","","","","","C","C"]),
-            ("★ EVT Exit Gate Review",               ["A","R","R","R","R","R","R","R","R","R"]),
+            ("GATE: EVT Exit Review",                ["A","R","R","R","R","R","R","R","R","R"]),
         ],
     },
     {
@@ -119,7 +117,7 @@ PHASES = [
         "color_idx": 4,
         "question": "Is the system architecture mature? Do we have a confirmed test plan?",
         "activities": [
-            ("Design Status – Frozen",               ["I","A","R","C","C","C","C","C","C","C"]),
+            ("Design Status - Frozen",               ["I","A","R","C","C","C","C","C","C","C"]),
             ("Feature Functionality Complete",       ["","A","I","R","R","R","","C","",""]),
             ("Tooling Agreement",                    ["C","C","R","","","","","","C","A"]),
             ("BOM Review Complete",                  ["","R/A","I","C","C","C","","I","C","C"]),
@@ -146,7 +144,7 @@ PHASES = [
             ("Confirm Firmware Stability",           ["","I","I","","","R/A","","","",""]),
             ("Yield Analysis",                       ["","I","I","","","","","","R/A","C"]),
             ("Packaging Testing",                    ["","","I","","","","","","R/A",""]),
-            ("★ DVT Exit Gate Review",               ["A","R","R","R","R","R","R","R","R","R"]),
+            ("GATE: DVT Exit Review",                ["A","R","R","R","R","R","R","R","R","R"]),
         ],
     },
     {
@@ -161,7 +159,7 @@ PHASES = [
             ("Quality Plan Reviewed",                ["","","I","","","","","","R/A",""]),
             ("Run at Rate Validation",               ["","I","I","","","","","","R/A","C"]),
             ("Target Yield Met",                     ["","I","I","","","","","","R/A","C"]),
-            ("★ PVT Handover Gate Review",           ["A","R","R","R","R","R","R","R","R","R"]),
+            ("GATE: PVT Handover Review",            ["A","R","R","R","R","R","R","R","R","R"]),
         ],
     },
     {
@@ -193,27 +191,31 @@ ROLE_HEADERS = ["SVP", "Eng Dir", "PM", "Mech", "Elec", "FW", "ID/UX", "Prod Dev
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def set_bg(slide, color):
+def set_slide_bg(slide, color):
     fill = slide.background.fill
     fill.solid()
     fill.fore_color.rgb = color
 
 
-def add_shape(slide, left, top, width, height, fill_color, line=False):
-    shape = slide.shapes.add_shape(1, Inches(left), Inches(top), Inches(width), Inches(height))
+def add_colored_box(slide, left, top, width, height, fill_color):
+    shape = slide.shapes.add_shape(
+        1,  # MSO_AUTO_SHAPE_TYPE.RECTANGLE
+        Inches(left), Inches(top), Inches(width), Inches(height)
+    )
     shape.fill.solid()
     shape.fill.fore_color.rgb = fill_color
-    if not line:
-        shape.line.fill.background()
+    shape.line.color.rgb = fill_color  # match border to fill = invisible border
     return shape
 
 
 def add_label(slide, text, left, top, width, height,
               size=12, bold=False, italic=False,
-              color=WHITE, align=PP_ALIGN.LEFT, wrap=True):
-    box = slide.shapes.add_textbox(Inches(left), Inches(top), Inches(width), Inches(height))
+              color=WHITE, align=PP_ALIGN.LEFT):
+    box = slide.shapes.add_textbox(
+        Inches(left), Inches(top), Inches(width), Inches(height)
+    )
     tf = box.text_frame
-    tf.word_wrap = wrap
+    tf.word_wrap = True
     p = tf.paragraphs[0]
     p.alignment = align
     run = p.add_run()
@@ -225,20 +227,10 @@ def add_label(slide, text, left, top, width, height,
     return box
 
 
-def set_cell_bg(cell, color):
-    tc = cell._tc
-    tcPr = tc.get_or_add_tcPr()
-    for old in tcPr.findall(qn('a:solidFill')):
-        tcPr.remove(old)
-    sf = parse_xml(
-        f'<a:solidFill xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
-        f'<a:srgbClr val="{str(color)}"/>'
-        f'</a:solidFill>'
-    )
-    tcPr.append(sf)
-
-
-def write_cell(cell, text, size=8, bold=False, color=DARK_GRAY, align=PP_ALIGN.CENTER):
+def set_cell(cell, text, bg_color, text_color=WHITE,
+             size=8, bold=False, align=PP_ALIGN.CENTER):
+    cell.fill.solid()
+    cell.fill.fore_color.rgb = bg_color
     cell.text = ""
     tf = cell.text_frame
     tf.word_wrap = False
@@ -248,27 +240,29 @@ def write_cell(cell, text, size=8, bold=False, color=DARK_GRAY, align=PP_ALIGN.C
     run.text = text
     run.font.size = Pt(size)
     run.font.bold = bold
-    run.font.color.rgb = color
+    run.font.color.rgb = text_color
 
 
 # ── Slide builders ────────────────────────────────────────────────────────────
 
 def build_title_slide(prs):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_bg(slide, DARK_BG)
+    set_slide_bg(slide, DARK_BG)
 
-    add_shape(slide, 0, 3.0, 13.33, 0.07, WAHOO_RED)
-    add_label(slide, "Product Development Process", 0.6, 1.6, 12.13, 1.1,
-              size=38, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-    add_label(slide, "RACI Responsibility Matrix  ·  Discovery through MP Launch",
-              0.6, 2.85, 12.13, 0.55, size=16, color=MED_GRAY, align=PP_ALIGN.CENTER)
+    add_colored_box(slide, 0, 3.0, 13.33, 0.07, WAHOO_RED)
+    add_label(slide, "Product Development Process",
+              0.6, 1.5, 12.13, 1.2, size=36, bold=True,
+              color=WHITE, align=PP_ALIGN.CENTER)
+    add_label(slide, "RACI Responsibility Matrix  |  Discovery through MP Launch",
+              0.6, 2.8, 12.13, 0.55, size=15,
+              color=MED_GRAY, align=PP_ALIGN.CENTER)
 
-    items = [("R  Responsible", R_COL), ("A  Accountable", A_COL),
-             ("C  Consulted", C_COL),   ("I  Informed", I_COL),
-             ("R/A  Both", RA_COL)]
+    legend = [("R  Responsible", R_COL), ("A  Accountable", A_COL),
+              ("C  Consulted",   C_COL), ("I  Informed",    I_COL),
+              ("R/A  Both",      RA_COL)]
     x = 0.92
-    for label, col in items:
-        add_shape(slide, x, 5.8, 2.2, 0.55, col)
+    for label, col in legend:
+        add_colored_box(slide, x, 5.8, 2.2, 0.55, col)
         add_label(slide, label, x, 5.8, 2.2, 0.55,
                   size=11, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
         x += 2.3
@@ -276,7 +270,7 @@ def build_title_slide(prs):
 
 def build_overview_slide(prs):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_bg(slide, DARK_BG)
+    set_slide_bg(slide, DARK_BG)
 
     add_label(slide, "Development Phases at a Glance",
               0.3, 0.12, 12.73, 0.6, size=22, bold=True, color=WHITE)
@@ -284,45 +278,37 @@ def build_overview_slide(prs):
     names = ["Discovery", "Concept", "EVT Entry", "EVT",
              "DVT Entry", "DVT", "PVT Handover", "PVT", "MP / Launch"]
     questions = [
-        "Worth deeper\ninvestment?",
-        "Should we invest\nfurther?",
-        "Design mature\nfor EVT?",
-        "Freeze arch →\npush to DVT?",
-        "Arch mature?\nTest plan ready?",
-        "Pass validation\n& certification?",
-        "Factory ready\nfor PVT?",
-        "Final BOM,\ncerts, training",
+        "Worth deeper\ninvestment?",    "Should we invest\nfurther?",
+        "Design mature\nfor EVT?",      "Freeze arch,\npush to DVT?",
+        "Arch mature?\nTest plan set?", "Pass validation\n& certs?",
+        "Factory ready\nfor PVT?",      "Final BOM,\ncerts, training",
         "Sustain or\nretire mode?",
     ]
     bw = 13.33 / 9 - 0.07
     for i in range(9):
         x = 0.03 + i * (bw + 0.07)
-        add_shape(slide, x, 0.85, bw, 1.0, PHASE_COLORS[i])
+        add_colored_box(slide, x, 0.85, bw, 1.0, PHASE_COLORS[i])
         add_label(slide, names[i], x, 0.88, bw, 0.45,
                   size=8, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
         add_label(slide, questions[i], x, 1.33, bw, 0.65,
                   size=7, color=RGBColor(0xDD, 0xDD, 0xDD), align=PP_ALIGN.CENTER)
-        if i < 8:
-            add_label(slide, "›", x + bw, 1.1, 0.12, 0.5,
-                      size=14, bold=True, color=MED_GRAY, align=PP_ALIGN.CENTER)
 
     add_label(slide,
-              "★  Gate reviews (Go / No-Go / Hold / Pivot) required at the end of each major phase",
+              "Gate reviews (Go / No-Go / Hold / Pivot) required at the end of each major phase",
               0.5, 2.1, 12.33, 0.4, size=10, italic=True,
               color=MED_GRAY, align=PP_ALIGN.CENTER)
-
     add_label(slide,
-              "Roles:  SVP  ·  Eng Directors  ·  Project Management  ·  Mechanical Eng  ·  "
-              "Electrical Eng  ·  Firmware Eng  ·  ID/UX  ·  Product Development  ·  "
-              "Quality/Manufacturing  ·  Operations",
+              "Roles:  SVP  |  Eng Directors  |  Project Management  |  Mechanical Eng  |  "
+              "Electrical Eng  |  Firmware Eng  |  ID/UX  |  Product Development  |  "
+              "Quality/Manufacturing  |  Operations",
               0.3, 2.65, 12.73, 0.45, size=9, color=MED_GRAY, align=PP_ALIGN.CENTER)
 
-    items = [("R  Responsible", R_COL), ("A  Accountable", A_COL),
-             ("C  Consulted", C_COL),   ("I  Informed", I_COL),
-             ("R/A  Both", RA_COL)]
+    legend = [("R  Responsible", R_COL), ("A  Accountable", A_COL),
+              ("C  Consulted",   C_COL), ("I  Informed",    I_COL),
+              ("R/A  Both",      RA_COL)]
     x = 1.42
-    for label, col in items:
-        add_shape(slide, x, 3.3, 2.0, 0.42, col)
+    for label, col in legend:
+        add_colored_box(slide, x, 3.3, 2.0, 0.42, col)
         add_label(slide, label, x, 3.3, 2.0, 0.42,
                   size=10, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
         x += 2.1
@@ -330,21 +316,19 @@ def build_overview_slide(prs):
 
 def build_phase_slide(prs, phase):
     slide = prs.slides.add_slide(prs.slide_layouts[6])
-    set_bg(slide, OFF_WHITE)
+    set_slide_bg(slide, OFF_WHITE)
 
     pc = PHASE_COLORS[phase["color_idx"]]
-
-    # Header band
-    add_shape(slide, 0, 0, 13.33, 1.05, pc)
+    add_colored_box(slide, 0, 0, 13.33, 1.05, pc)
     add_label(slide, phase["name"], 0.2, 0.05, 9.5, 0.55,
               size=20, bold=True, color=WHITE)
     add_label(slide, phase["question"], 0.2, 0.6, 10.0, 0.38,
               size=9, italic=True, color=RGBColor(0xDD, 0xDD, 0xDD))
 
-    # Mini legend in header
     lx = 9.7
-    for lbl, col in [("R", R_COL), ("A", A_COL), ("C", C_COL), ("I", I_COL), ("R/A", RA_COL)]:
-        add_shape(slide, lx, 0.28, 0.6, 0.38, col)
+    for lbl, col in [("R", R_COL), ("A", A_COL), ("C", C_COL),
+                     ("I", I_COL), ("R/A", RA_COL)]:
+        add_colored_box(slide, lx, 0.28, 0.6, 0.38, col)
         add_label(slide, lbl, lx, 0.28, 0.6, 0.38,
                   size=8, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
         lx += 0.68
@@ -359,41 +343,31 @@ def build_phase_slide(prs, phase):
         Inches(13.09), Inches(6.25)
     ).table
 
-    act_w = Inches(3.35)
-    role_w = Inches((13.09 - 3.35) / 10)
-    tbl.columns[0].width = act_w
+    tbl.columns[0].width = Inches(3.35)
     for ci in range(1, 11):
-        tbl.columns[ci].width = role_w
+        tbl.columns[ci].width = Inches((13.09 - 3.35) / 10)
 
     # Header row
-    write_cell(tbl.cell(0, 0), "Activity", size=8, bold=True, color=WHITE, align=PP_ALIGN.LEFT)
-    set_cell_bg(tbl.cell(0, 0), pc)
+    set_cell(tbl.cell(0, 0), "Activity", pc, WHITE, size=8, bold=True,
+             align=PP_ALIGN.LEFT)
     for ci, role in enumerate(ROLE_HEADERS):
-        c = tbl.cell(0, ci + 1)
-        write_cell(c, role, size=7, bold=True, color=WHITE)
-        set_cell_bg(c, pc)
+        set_cell(tbl.cell(0, ci + 1), role, pc, WHITE, size=7, bold=True)
 
     # Activity rows
     for ri, (name, raci) in enumerate(acts):
-        is_gate = name.startswith("★")
-        row_bg = DARK_BG if is_gate else (OFF_WHITE if ri % 2 == 0 else LIGHT_ROW)
-        txt_color = WHITE if is_gate else DARK_GRAY
-        display = name.lstrip("★ ")
-        prefix = "★  " if is_gate else ""
+        is_gate = name.startswith("GATE:")
+        row_bg  = DARK_BG if is_gate else (OFF_WHITE if ri % 2 == 0 else LIGHT_ROW)
+        txt_col = WHITE if is_gate else DARK_GRAY
 
-        nc = tbl.cell(ri + 1, 0)
-        write_cell(nc, prefix + display, size=8, bold=is_gate,
-                   color=txt_color, align=PP_ALIGN.LEFT)
-        set_cell_bg(nc, row_bg)
+        set_cell(tbl.cell(ri + 1, 0), name, row_bg, txt_col,
+                 size=8, bold=is_gate, align=PP_ALIGN.LEFT)
 
         for ci, val in enumerate(raci):
             c = tbl.cell(ri + 1, ci + 1)
             if val in RACI_MAP:
-                write_cell(c, val, size=8, bold=True, color=WHITE)
-                set_cell_bg(c, RACI_MAP[val])
+                set_cell(c, val, RACI_MAP[val], WHITE, size=8, bold=True)
             else:
-                write_cell(c, "", size=8, color=DARK_GRAY)
-                set_cell_bg(c, row_bg)
+                set_cell(c, "", row_bg, txt_col, size=8)
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
